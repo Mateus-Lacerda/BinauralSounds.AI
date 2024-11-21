@@ -110,15 +110,15 @@ def feedback():
 
             with col1:
                 st.audio(audio1)
-                feeling1 = st.selectbox("Select a feeling for Music 1", ["Alert", "Creative", "Relaxed", "Productive", "Sleepy"], key=f"feeling1_{pair_index}")
+                feeling1 = st.selectbox(t("Select a feeling for Music 1"), [t("Alert"), t("Creative"), t("Relaxed"), t("Productive"), t("Sleepy")], key=f"feeling1_{pair_index}")
 
             with col2:
                 st.audio(audio2)
-                feeling2 = st.selectbox("Select a feeling for Music 2", ["Alert", "Creative", "Relaxed", "Productive", "Sleepy"], key=f"feeling2_{pair_index}")
+                feeling2 = st.selectbox(t("Select a feeling for Music 2"), [t("Alert"), t("Creative"), t("Relaxed"), t("Productive"), t("Sleepy")], key=f"feeling2_{pair_index}")
 
-            preferred = st.radio("Which music do you prefer?", ("Music 1", "Music 2"), key=f"preferred_{pair_index}")
+            preferred = st.radio(t("Which music do you prefer?"), ("Music 1", "Music 2"), key=f"preferred_{pair_index}")
 
-            if st.button("Next"):
+            if st.button(t("Next")):
                 st.session_state.responses.append(
                     {
                         "pair": pair_index + 1,
@@ -132,7 +132,7 @@ def feedback():
                 st.session_state.current_pair += 1
                 st.rerun()
         else:
-            st.text("Thank you for your feedback!")
+            st.text(t("Thank you for your feedback!"))
             save_feedback(
                 { 
                     "name": st.session_state["name"],
@@ -143,7 +143,7 @@ def feedback():
                 }
             )
     else:
-        st.warning("Please submit your information to proceed.")
+        st.warning(t("Please submit your information to proceed."))
 
 def try_it_out():
     st.title(t("Try it out"))
