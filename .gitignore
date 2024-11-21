@@ -1,0 +1,9 @@
+# virtual environment
+venv/
+# cache
+__pycache__/
+*.pyc
+# audiocraft repo
+audiocraft/
+# arquivos do modelo
+...
