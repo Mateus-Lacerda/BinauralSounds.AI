@@ -174,19 +174,7 @@ def try_it_out():
             json={"description": description, "binaural_freq": frequency, "apply_binaural": True},
             headers={"Authorization": f"Bearer {get_ngrok_api_secret()}"}
         )
-
-        non_binaural_response = requests.post(
-            f"{get_ngrok_url()}/api/music_gen",
-            json={"description": description, "binaural_freq": 0, "apply_binaural": False},
-            headers={"Authorization": f"Bearer {get_ngrok_api_secret()}"}
-        )
-        
-        if non_binaural_response.status_code == 200:
-            st.write(t("Non-binaural audio:"))
-            st.audio(non_binaural_response.content, format="audio/mpeg")
-        else:
-            st.write(t("Failed to generate non-binaural audio. Please try again."))
-        
+                
         if response.status_code == 200:
             # Save audio content in session state
             st.session_state["audio_content"] = response.content
