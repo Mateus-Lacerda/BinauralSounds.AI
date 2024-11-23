@@ -12,6 +12,7 @@ import json
 
 load_dotenv()
 
+FEEDBACK_SHEET_ID = os.getenv('FEEDBACK_SHEET_ID', None)
 SERVICE_ACCOUNT_PATH = os.getenv('SERVICE_ACCOUNT_PATH', None)
 if SERVICE_ACCOUNT_PATH is None:
     service_account_info = {
@@ -31,14 +32,6 @@ if SERVICE_ACCOUNT_PATH is None:
     gc = gspread.authorize(credentials)
 else:
     gc = gspread.service_account(filename=SERVICE_ACCOUNT_PATH)
-
-def create_feedback_sheet():
-    """
-    Creates a Google Sheets feedback sheet.
-    """
-    FEEDBACK_SHEET_ID = os.getenv('FEEDBACK_SHEET_ID', None)
-    if FEEDBACK_SHEET_ID is None:
-        return gc.create('Feedback Data').id
 
 def flatten_feedback(feedback):
     """
