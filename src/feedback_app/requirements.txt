@@ -1,0 +1,5 @@
+load_dotenv
+streamlit
+requests
+gspread
+oauth2client
