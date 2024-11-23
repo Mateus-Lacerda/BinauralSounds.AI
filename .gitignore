@@ -7,3 +7,6 @@ __pycache__/
 audiocraft/
 # arquivos do modelo
 ...
+# dados sensíveis
+credentials.json
+.env

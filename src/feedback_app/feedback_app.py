@@ -2,6 +2,96 @@ import streamlit as st
 import requests
 import os
 import json
+import datetime
+from threading import Thread
+from dotenv import load_dotenv
+
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+import json
+
+load_dotenv()
+
+SERVICE_ACCOUNT_PATH = os.getenv('SERVICE_ACCOUNT_PATH', None)
+if SERVICE_ACCOUNT_PATH is None:
+    service_account_info = {
+    "type": st.secrets["service_account"]["type"],
+    "project_id": st.secrets["service_account"]["project_id"],
+    "private_key_id": st.secrets["service_account"]["private_key_id"],
+    "private_key": st.secrets["service_account"]["private_key"],
+    "client_email": st.secrets["service_account"]["client_email"],
+    "client_id": st.secrets["service_account"]["client_id"],
+    "auth_uri": st.secrets["service_account"]["auth_uri"],
+    "token_uri": st.secrets["service_account"]["token_uri"],
+    "auth_provider_x509_cert_url": st.secrets["service_account"]["auth_provider_x509_cert_url"],
+    "client_x509_cert_url": st.secrets["service_account"]["client_x509_cert_url"],
+    "universe_domain": st.secrets["service_account"]["universe_domain"]
+    }      
+    credentials = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info)
+    gc = gspread.authorize(credentials)
+else:
+    gc = gspread.service_account(filename=SERVICE_ACCOUNT_PATH)
+
+def create_feedback_sheet():
+    """
+    Creates a Google Sheets feedback sheet.
+    """
+    FEEDBACK_SHEET_ID = os.getenv('FEEDBACK_SHEET_ID', None)
+    if FEEDBACK_SHEET_ID is None:
+        return gc.create('Feedback Data').id
+
+def flatten_feedback(feedback):
+    """
+    Flattens feedback into a single dictionary suitable for use as a dataset row.
+    
+    Parameters:
+    feedback (list): A list of dictionaries representing feedback for music pairs.
+
+    Returns:
+    dict: A single dictionary with keys representing feedback details for each pair.
+    """
+    flattened = {}
+
+    for feedback_pair in feedback:
+        pair_id = feedback_pair['pair']
+        # Flatten music1 details
+        flattened[f'pair_{pair_id}_music1'] = feedback_pair['music1']
+        flattened[f'pair_{pair_id}_music1_feeling'] = feedback_pair['music1_feeling']
+        # Flatten music2 details
+        flattened[f'pair_{pair_id}_music2'] = feedback_pair['music2']
+        flattened[f'pair_{pair_id}_music2_feeling'] = feedback_pair['music2_feeling']
+        # Preferred music
+        flattened[f'pair_{pair_id}_preferred'] = feedback_pair['preferred']
+
+    return flattened
+
+def send_to_google_sheets(data):
+    """
+    Sends JSON data to Google Sheets.
+    """
+    sheet = gc.open_by_key(FEEDBACK_SHEET_ID)
+    sheet = sheet.sheet1
+
+    # Prepare headers if the sheet is empty
+    if not sheet.get_all_records():
+        headers = list(data.keys())
+        feedback_headers = list(flatten_feedback(data["feedback"]).keys())
+        sheet.append_row(headers + feedback_headers)
+
+
+    feedback = flatten_feedback(data.pop("feedback"))
+    ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    flattened_row = list(data.values()) + list(feedback.values()) + [ts]
+    sheet.append_row(flattened_row)
+
+def get_from_google_sheets():
+  """
+  Gets data from Google Sheets.
+  """
+  sheet = gc.open_by_key(FEEDBACK_SHEET_ID)
+  sheet = sheet.sheet1
+  data = sheet.get_all_records()
+  return data
 
 CONFIG_FILE = "src/feedback_app/config.json"
 
@@ -27,8 +117,6 @@ if "authenticated" not in st.session_state:
 with open("src/feedback_app/data/translations.json", "r") as f:
     TRANSLATIONS =  json.load(f)
 
-FEEDBACK_PATH = "src/feedback_app/data/feedback.json"
-
 # Function to get the translated text
 def t(key):
     language = st.session_state.get("language", "English")
@@ -47,15 +135,8 @@ def get_ngrok_api_secret():
     return load_config().get("NGROK_API_SECRET")
 
 def save_feedback(response):
-    feedback_file = FEEDBACK_PATH
-    if os.path.exists(feedback_file):
-        with open(feedback_file, "r") as f:
-            data = json.load(f)
-    else:
-        data = []
-    data.append(response)
-    with open(feedback_file, "w") as f:
-        json.dump(data, f, indent=4)
+    thread = Thread(target=send_to_google_sheets, args=(response,))
+    thread.start()
 
 def feedback():
     st.title(t("Feedback App"))
@@ -202,36 +283,46 @@ def try_it_out():
             )
 
 def dashboard():
-    feedback_data = []
-    if os.path.exists(FEEDBACK_PATH):
-        with open(FEEDBACK_PATH, "r") as f:
-            feedback_data = json.load(f)
+    feedback_data = get_from_google_sheets()
 
-    data = []
-    for response in feedback_data:
-        data.extend(response["feedback"])
-
-    st.title(t("Dashboard"))
-    st.write(t("Here you can visualize the data from the provided feedback."))
-
-    if not data:
+    if not feedback_data:
+        st.title(t("Dashboard"))
+        st.write(t("Here you can visualize the data from the provided feedback."))
         st.warning(t("No feedback data available."))
         return
 
-    # Count feelings for Music 1 and Music 2
+    # Initialize dictionaries for data aggregation
     feelings_music1 = {}
     feelings_music2 = {}
     preferences = {t("Music 1"): 0, t("Music 2"): 0}
 
-    for response in data:
-        feelings_music1[response["music1_feeling"]] = feelings_music1.get(response["music1_feeling"], 0) + 1
-        feelings_music2[response["music2_feeling"]] = feelings_music2.get(response["music2_feeling"], 0) + 1
-        preferences[response["preferred"]] += 1
+    # Process each response
+    for response in feedback_data:
+        for pair_num in range(1, 6):  # Assuming up to 5 pairs
+            music1_feeling_key = f'pair_{pair_num}_music1_feeling'
+            music2_feeling_key = f'pair_{pair_num}_music2_feeling'
+            preferred_key = f'pair_{pair_num}_preferred'
+
+            # Aggregate feelings and preferences
+            if music1_feeling_key in response and music2_feeling_key in response and preferred_key in response:
+                feelings_music1[response[music1_feeling_key]] = (
+                    feelings_music1.get(response[music1_feeling_key], 0) + 1
+                )
+                feelings_music2[response[music2_feeling_key]] = (
+                    feelings_music2.get(response[music2_feeling_key], 0) + 1
+                )
+                preferences[response[preferred_key]] = (
+                    preferences.get(response[preferred_key], 0) + 1
+                )
 
     # Prepare data for charts
     music1_chart_data = {"Feeling": list(feelings_music1.keys()), "Count": list(feelings_music1.values())}
     music2_chart_data = {"Feeling": list(feelings_music2.keys()), "Count": list(feelings_music2.values())}
     preferences_chart_data = {"Music": list(preferences.keys()), "Count": list(preferences.values())}
+
+    # Display dashboard
+    st.title(t("Dashboard"))
+    st.write(t("Here you can visualize the data from the provided feedback."))
 
     # Bar charts for feelings
     st.subheader(t("Feelings for Music 1 and Music 2"))
@@ -284,7 +375,7 @@ def run():
     language_options = ["English", "Português"]
 
     # Usar o parâmetro index para definir o idioma padrão
-    default_language = st.session_state.get("language", "English")
+    default_language = st.session_state.get("language", "Português")
     if default_language in language_options:
         default_index = language_options.index(default_language)
     else:
@@ -314,7 +405,7 @@ def run():
 
     # Definir página padrão
     if "page" not in st.session_state:
-        st.session_state["page"] = "try_it_out"
+        st.session_state["page"] = "feedback"
 
     # Obter o índice da página atual
     current_page_index = page_keys.index(st.session_state["page"])
