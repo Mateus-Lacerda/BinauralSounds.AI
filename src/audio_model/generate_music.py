@@ -17,21 +17,16 @@ def hertz_to_semitones(freq_original, freq_alvo):
     """Converte um intervalo de frequência de Hertz para semitons."""
     return 12 * np.log2(freq_alvo / freq_original)
 
-def alterar_frequencia(input_file, binaural_frequency_hz):
-    """Altera a frequência de um arquivo de áudio para criar um efeito binaural."""
-    # Verificar se o input é um BytesIO
-    if isinstance(input_file, io.BytesIO):
-        input_file.seek(0)  # Reiniciar o ponteiro para o início do buffer
-        y, sr = sf.read(input_file)
-    else:
-        y, sr = librosa.load(input_file, sr=None)
+def alterar_frequencia(input_file, output_file, binaural_frequency_hz):
+    # Carregar o arquivo de áudio
+    y, sr = librosa.load(input_file, sr=None)  # sr=None preserva a taxa de amostragem original
 
     # Frequência original do áudio (aproximação para cálculo: taxa de amostragem / 2)
     freq_original = sr / 2
 
     # Calcular o desvio em semitons para o binaural
-    n_steps_baixo = hertz_to_semitones(freq_original, freq_original - binaural_frequency_hz / 2)
-    n_steps_alto = hertz_to_semitones(freq_original, freq_original + binaural_frequency_hz / 2)
+    n_steps_baixo = hertz_to_semitones(freq_original, freq_original - binaural_frequency_hz/2)
+    n_steps_alto = hertz_to_semitones(freq_original, freq_original + binaural_frequency_hz/2)
 
     # Criar os dois canais com pitch alterado
     canal_esquerdo = librosa.effects.pitch_shift(y, sr=sr, n_steps=n_steps_baixo)
@@ -40,13 +35,10 @@ def alterar_frequencia(input_file, binaural_frequency_hz):
     # Combinar os dois canais em um array estéreo
     y_stereo = np.vstack((canal_esquerdo, canal_direito))
 
-    # Criar um buffer BytesIO para saída
-    output_buffer = io.BytesIO()
-    sf.write(output_buffer, y_stereo.T, sr, format='WAV', subtype='PCM_16')
-    output_buffer.seek(0)  # Reiniciar o ponteiro para leitura
+    # Salvar o áudio estéreo em um arquivo WAV
+    sf.write(output_file, y_stereo.T, sr, format='WAV', subtype='PCM_16')
 
     print(f"Frequência binaural gerada com desvio de {binaural_frequency_hz} Hz entre canais.")
-    return output_buffer
 
 def generate_music(description: str, binaural_frequency: int, apply_binaural: bool = False):
     """
@@ -64,9 +56,10 @@ def generate_music(description: str, binaural_frequency: int, apply_binaural: bo
             with open(dummy_path, "rb") as f:
                 audio = f.read()
             if apply_binaural:
-                dummy_buffer = alterar_frequencia(dummy_path, binaural_frequency)
-                dummy_buffer.seek(0)
-                audio = dummy_buffer.read()
+                output_path = "src/audio_model/dummy_data/audio_binaural.wav"
+                alterar_frequencia(dummy_path, output_path, binaural_frequency)
+                with open(dummy_path, "rb") as f:
+                    audio = f.read()
             return audio
         else:
             return "NADA"
@@ -85,10 +78,11 @@ def generate_music(description: str, binaural_frequency: int, apply_binaural: bo
 
         # Get the byte data from the buffer
         buffer.seek(0)
+        audio_bytes = buffer.read()
 
         if apply_binaural:
-            output_buffer = alterar_frequencia(buffer, binaural_frequency)
-            output_buffer.seek(0)
-            audio_bytes = output_buffer.read()
+            alterar_frequencia(io.BytesIO(audio_bytes), buffer, binaural_frequency)
+            buffer.seek(0)
+            audio_bytes = buffer.read()
 
         return audio_bytes
