@@ -10,3 +10,4 @@ audiocraft/
 # dados sensíveis
 credentials.json
 .env
+audioinput/

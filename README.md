@@ -235,6 +235,9 @@ Para utilizar o script `BinauralSounds.AI`, siga as instruções abaixo:
 - `-g`, `--generate`: Ativar o modo de geração de música.
 - `-sm`, `--serve_model`: Serve a API do modelo localmente com `ngrok`.
 - `-sa`, `--serve_app`: Serve o aplicativo de feedback localmente com `Streamlit` (não implementado).
+- `-b`, `--binauralize`: Binauralize a sound from the `audioinput` folder.
+- `-bi`, `--binauralize_input`: The input file to binauralize. This should be a string representing the file path.
+- `-bf`, `--binauralize_frequency`: The frequency difference between the two channels. This should be an integer value.
 
 ### Exemplos de uso:
 
@@ -248,6 +251,12 @@ Para utilizar o script `BinauralSounds.AI`, siga as instruções abaixo:
 
     ```sh
     python src/binaural_sounds.py --serve_model --generate
+    ```
+
+- Para binauralizar um som específico com uma frequência de 10 Hz:
+
+    ```sh
+    python src/binaural_sounds.py --binauralize --binauralize_input "sample.wav" --binauralize_frequency 10
     ```
 
 - Para exibir a ajuda:
